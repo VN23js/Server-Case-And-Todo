@@ -17,7 +17,7 @@ dotenv.config();
 const app = express();
 app.use(
   cors({
-    origin: 'https://nmmwl94l-5173.euw.devtunnels.ms',
+    origin: process.env.APICLIENT,
     credentials: true,
   })
 );
@@ -27,7 +27,7 @@ app.use(express.json());
 app.use(cookieParser());
 export const io = new Server(server, {
   cors: {
-    origin: 'https://nmmwl94l-5173.euw.devtunnels.ms',
+    origin: process.env.APICLIENT,
     credentials: true,
   },
 });
