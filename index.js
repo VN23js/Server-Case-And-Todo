@@ -86,7 +86,7 @@ app.use((req, res) => {
 const startServer = async () => {
   try {
     // await createCase();
-    await seedItems();
+    // await seedItems();
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log('MongoDB connected');
