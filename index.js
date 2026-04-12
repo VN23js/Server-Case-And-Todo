@@ -33,13 +33,19 @@ export const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-  console.log('User connected:', io.sockets.sockets.size);
+  io.emit('users_online', io.sockets.sockets.size);
+  console.log('Users', io.sockets.sockets.size);
+
   socket.on('disconnect', () => {
-    console.log('User connected:', io.sockets.sockets.size);
-    console.log('User disconnected:', socket.id);
+    io.emit('users_online', io.sockets.sockets.size);
+  });
+
+  socket.on('get_users_online', () => {
+    // ✅ клиент сам запрашивает
+    socket.emit('users_online', io.sockets.sockets.size);
   });
 });
+
 const bannedip = new Set([
   //'93.123.84.40',
   // '93.23.4.40',

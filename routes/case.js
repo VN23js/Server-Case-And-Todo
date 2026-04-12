@@ -3,6 +3,7 @@ import {
   getAllSession,
   getCase,
   getCaseMain,
+  GetCaseUser,
   getInvenory,
   randomRulet,
   randomtItems,
@@ -18,4 +19,5 @@ router.get('/inventory', authMiddleware, getInvenory);
 router.get('/getallcase', getCaseMain);
 router.get('/getitems/:id', optinalAuth, randomtItems);
 router.post('/random/:id', authMiddleware, randomRulet);
+router.get('/profile/:id',GetCaseUser);
 export default router;

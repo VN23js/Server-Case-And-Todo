@@ -2,6 +2,7 @@ import { io } from '../index.js';
 import Case from '../models/Case.js';
 import Items from '../models/Items.js';
 import RouletteSession from '../models/RouletteSessionSchema.js';
+import Users from '../models/Users.js';
 
 export const getCase = async (req, res) => {
   try {
@@ -43,13 +44,44 @@ export const getAllSession = async (req, res) => {
     const result = allWinItems.map((id) =>
       newlistId.find((item) => item._id.toString() === id.toString())
     );
-    const DataWinIndex = session.map((item) => {
+    //// Поиск кейсов
+    const casesId = session.map((itme) => {
+      return itme.caseId;
+    });
+    const casesFullData = await Case.find({
+      _id: { $in: casesId },
+    });
+
+    ////Поиск кейсов
+    /* const DataWinInde = session.map((item) => {
       const winItem = result.find(
         (s) => s._id.toString() === item.winIndex.toString()
       );
+
       return { ...item._doc, winItem };
     });
+    const DataWinIndex = DataWinInde.map((item) => {
+      const CasesFullData = casesFullData.find(
+        (s) => s._id.toString() === item.caseId.toString()
+      );
 
+      return { ...item, CasesFullData };
+    });
+*/ const itemsMap = new Map(
+      newlistId.map((item) => [item._id.toString(), item])
+    );
+    const casesMap = new Map(
+      casesFullData.map((item) => [item._id.toString(), item])
+    );
+    const DataWinIndex = session.map((item) => {
+      const winItem = itemsMap.get(item.winIndex.toString());
+      const casesData = casesMap.get(item.caseId.toString());
+      return {
+        ...item._doc,
+        winItem,
+        casesData,
+      };
+    });
     return res.json({ DataWinIndex });
   } catch (error) {
     res.status(500).json({
@@ -69,11 +101,11 @@ export const getInvenory = async (req, res) => {
     if (allSession.length === 0) {
       return res.json({ inventory: [] });
     }
-    console.log(allSession);
+
     const allWinItems = allSession.map((item) => {
       return item.winIndex;
     });
-    console.log(allWinItems);
+    /// console.log(allWinItems);
     const listinvetory = await Items.find({
       _id: { $in: allWinItems },
     });
@@ -194,16 +226,20 @@ export const randomRulet = async (req, res) => {
     session.isSpinned = isSpinnedTrue;
     session.winIndex = winItemId._id.toString();
     await session.save();
+    //// Поиск кейсов
 
-    //
+    const casesData = await Case.findById(caseId);
+
+    ////Поиск кейсов
+
     const WinIndex = () => {
-      if (winItem._id.toString() === session.winIndex) {
-        return {
-          ...session._doc,
-          winItem,
-        };
-      }
+      return {
+        ...session._doc,
+        winItem,
+        casesData,
+      };
     };
+
     const DataWinIndex = WinIndex();
 
     //new session
@@ -217,6 +253,75 @@ export const randomRulet = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: 'Ошибка сервера',
+      error: error.message,
+    });
+  }
+};
+
+export const GetCaseUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(id);
+    const UserInfo = await Users.findById(id);
+    if (!UserInfo) {
+      return res
+        .status(400)
+        .json({ message: 'Ошибка нету такого пользователя' });
+    }
+    console.log({ UserName: UserInfo.username });
+
+    const session = await RouletteSession.find({
+      userId: id,
+      isSpinned: true,
+    }).sort({
+      updatedAt: -1,
+    });
+
+    const itemsId = session.map((item) => {
+      return item.winIndex;
+    });
+    const itemData = await Items.find({
+      _id: { $in: itemsId },
+    });
+    const maxPriceItem = itemData.reduce((max, item) => {
+      if (item.price > max.price) {
+        return {
+          _id: item._id,
+          nameSkin: item.nameSkin,
+          nameWeapon: item.nameWeapon,
+          linkImg: item.linkImg,
+          price: item.price,
+        };
+      }
+      return max;
+    }, itemData[0]);
+    // Все предметы
+    const allWinItems = session.map((item) => {
+      return item.winIndex;
+    });
+    /// console.log(allWinItems);
+    const listinvetory = await Items.find({
+      _id: { $in: allWinItems },
+    });
+    const result = allWinItems.map((id) =>
+      listinvetory.find((item) => item._id.toString() === id.toString())
+    );
+    //Все предметы
+    if (itemData.length === 0) {
+      return res.json({
+        maxPriceItem: null,
+        UserName: UserInfo.username,
+        inventory: null,
+      });
+    }
+    return res.json({
+      maxPriceItem,
+      UserName: UserInfo.username,
+      inventory: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Ошибка не удалось найти такого пользователя',
       error: error.message,
     });
   }
