@@ -7,6 +7,7 @@ import authRoute from './routes/auth.js';
 import cookieParser from 'cookie-parser';
 import todoRoute from './routes/todos.js';
 import caseRoute from './routes/case.js';
+import adminCreateWeapon from './routes/admin.js';
 import Items from './models/Items.js';
 import { createCase, seedItems } from './seed/items.js';
 import http from 'http';
@@ -71,6 +72,7 @@ app.set('trust proxy', 1);
 app.use('/api/auth', checkip, authRoute);
 app.use('/api/todo', checkip, todoRoute);
 app.use('/api/case', caseRoute);
+app.use('/api/admin', adminCreateWeapon);
 
 //app.get('/', (req, res) => {
 // return res.json({ mesage: 'API IS Running' });
@@ -91,8 +93,8 @@ app.use((req, res) => {
 
 const startServer = async () => {
   try {
-    // await createCase();
-    // await seedItems();
+    //await createCase();
+    //await seedItems();
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log('MongoDB connected');

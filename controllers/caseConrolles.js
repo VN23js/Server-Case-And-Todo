@@ -16,7 +16,16 @@ export const getCase = async (req, res) => {
         (item) => item._id.toString() === itemId.toString()
       );
     });
-
+    const rarityOrder = {
+      gold: 5,
+      red: 4,
+      pink: 3,
+      blue: 2,
+      green: 1,
+    };
+    newSortedItems.sort((a, b) => {
+      return rarityOrder[b.rarity] - rarityOrder[a.rarity];
+    });
     return res.json({ caseItems: newSortedItems });
   } catch (error) {
     console.log(error);
@@ -32,7 +41,7 @@ export const getAllSession = async (req, res) => {
       .sort({
         updatedAt: -1,
       })
-      .limit(10);
+      .limit(15);
 
     const allWinItems = session.map((item) => {
       return item.winIndex;
@@ -44,6 +53,7 @@ export const getAllSession = async (req, res) => {
     const result = allWinItems.map((id) =>
       newlistId.find((item) => item._id.toString() === id.toString())
     );
+
     //// Поиск кейсов
     const casesId = session.map((itme) => {
       return itme.caseId;
@@ -112,7 +122,7 @@ export const getInvenory = async (req, res) => {
     const result = allWinItems.map((id) =>
       listinvetory.find((item) => item._id.toString() === id.toString())
     );
-    console.log(result);
+
     return res.json({ inventory: result });
   } catch (error) {
     res.status(500).json({
@@ -185,7 +195,7 @@ export const randomtItems = async (req, res) => {
           (item) => item._id.toString() === itemId.toString()
         );
       });
-      res.json({ itemsrulet: newSortedItems, CaseName: caseData.name });
+      return res.json({ itemsrulet: newSortedItems, CaseName: caseData.name });
     }
     // Если есть Session
     const listItems = await Items.find({
@@ -210,11 +220,16 @@ export const randomtItems = async (req, res) => {
 export const randomRulet = async (req, res) => {
   try {
     const caseId = req.params.id;
-    const session = await RouletteSession.findOne({
-      userId: req.userId,
-      isSpinned: false,
-      caseId: caseId,
-    });
+    const session = await RouletteSession.findOneAndUpdate(
+      {
+        userId: req.userId,
+        isSpinned: false,
+        caseId: caseId,
+      },
+      { $set: { isSpinned: true } },
+
+      { new: true }
+    );
 
     const winIndex = Math.floor(Math.random() * session.itemsOrder.length);
     const winItemId = session.itemsOrder[winIndex];
@@ -222,8 +237,7 @@ export const randomRulet = async (req, res) => {
     console.log(session.itemsOrder.length);
     console.log(winItem);
     console.log(winIndex);
-    const isSpinnedTrue = true;
-    session.isSpinned = isSpinnedTrue;
+
     session.winIndex = winItemId._id.toString();
     await session.save();
     //// Поиск кейсов
@@ -232,15 +246,13 @@ export const randomRulet = async (req, res) => {
 
     ////Поиск кейсов
 
-    const WinIndex = () => {
-      return {
-        ...session._doc,
-        winItem,
-        casesData,
-      };
+    const WinIndex = {
+      ...session._doc,
+      winItem,
+      casesData,
     };
 
-    const DataWinIndex = WinIndex();
+    const DataWinIndex = WinIndex;
 
     //new session
     const newSession = await RouletteSession.create({
@@ -260,8 +272,11 @@ export const randomRulet = async (req, res) => {
 
 export const GetCaseUser = async (req, res) => {
   try {
+    const page = Number(req.query.page) || 1;
+    console.log(page);
+    const limit = 12;
     const id = req.params.id;
-    console.log(id);
+
     const UserInfo = await Users.findById(id);
     if (!UserInfo) {
       return res
@@ -269,13 +284,23 @@ export const GetCaseUser = async (req, res) => {
         .json({ message: 'Ошибка нету такого пользователя' });
     }
     console.log({ UserName: UserInfo.username });
-
-    const session = await RouletteSession.find({
+    ///
+    const fullSession = await RouletteSession.find({
       userId: id,
       isSpinned: true,
     }).sort({
       updatedAt: -1,
     });
+    ////
+    const session = await RouletteSession.find({
+      userId: id,
+      isSpinned: true,
+    })
+      .sort({
+        updatedAt: -1,
+      })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     const itemsId = session.map((item) => {
       return item.winIndex;
@@ -283,7 +308,17 @@ export const GetCaseUser = async (req, res) => {
     const itemData = await Items.find({
       _id: { $in: itemsId },
     });
-    const maxPriceItem = itemData.reduce((max, item) => {
+
+    ///fullSession
+
+    const itemsIdFull = fullSession.map((item) => {
+      return item.winIndex;
+    });
+    const itemDataFull = await Items.find({
+      _id: { $in: itemsIdFull },
+    });
+    ///
+    const maxPriceItem = itemDataFull.reduce((max, item) => {
       if (item.price > max.price) {
         return {
           _id: item._id,
@@ -296,17 +331,9 @@ export const GetCaseUser = async (req, res) => {
       return max;
     }, itemData[0]);
     // Все предметы
-    const allWinItems = session.map((item) => {
-      return item.winIndex;
-    });
-    /// console.log(allWinItems);
-    const listinvetory = await Items.find({
-      _id: { $in: allWinItems },
-    });
-    const result = allWinItems.map((id) =>
-      listinvetory.find((item) => item._id.toString() === id.toString())
+    const result = itemsId.map((id) =>
+      itemData.find((item) => item._id.toString() === id.toString())
     );
-    //Все предметы
     if (itemData.length === 0) {
       return res.json({
         maxPriceItem: null,
@@ -314,10 +341,23 @@ export const GetCaseUser = async (req, res) => {
         inventory: null,
       });
     }
+    const countItems = await RouletteSession.countDocuments({
+      userId: id,
+      isSpinned: true,
+    });
+    const hasMore = page * limit < countItems;
+
+    if (req.query.page) {
+      return res.json({
+        hasMore,
+        inventory: result,
+      });
+    }
     return res.json({
       maxPriceItem,
       UserName: UserInfo.username,
       inventory: result,
+      hasMore,
     });
   } catch (error) {
     res.status(500).json({

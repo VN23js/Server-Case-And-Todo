@@ -5,12 +5,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Case from '../models/Case.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Загружаем .env из корня проекта
-dotenv.config({ path: path.join(__dirname, '../.env') });
-
 export const skins = [
   //Жёлтое
   {
