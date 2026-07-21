@@ -15,7 +15,7 @@ const ItemsSchema = new mongoose.Schema(
     },
     linkImg: {
       type: String,
-      default: '', // ← исправь "defaul" на "default"
+      default: '', // 
       required: true, // лучше сделать обязательным
     },
     color: {
