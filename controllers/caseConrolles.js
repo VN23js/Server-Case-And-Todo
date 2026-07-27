@@ -277,91 +277,60 @@ export const GetCaseUser = async (req, res) => {
     const limit = 12;
     const id = req.params.id;
 
-    const UserInfo = await Users.findById(id);
-    if (!UserInfo) {
-      return res
-        .status(400)
-        .json({ message: 'Ошибка нету такого пользователя' });
+    // Создаем массив асинхроных запросов
+    const [userInfo, session, countItems, allUsserWinIds] = await Promise.all([
+      Users.findById(id).select('username').lean(),
+      RouletteSession.find({ userId: id, isSpinned: true })
+        .sort({ updatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      RouletteSession.countDocuments({ userId: id, isSpinned: true }),
+      RouletteSession.distinct('winIndex', { userId: id, isSpinned: true }),
+    ]);
+
+    //проверка юзера
+    if (!userInfo) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
     }
-    console.log({ UserName: UserInfo.username });
-    ///
-    const fullSession = await RouletteSession.find({
-      userId: id,
-      isSpinned: true,
-    }).sort({
-      updatedAt: -1,
-    });
-    ////
-    const session = await RouletteSession.find({
-      userId: id,
-      isSpinned: true,
-    })
-      .sort({
-        updatedAt: -1,
-      })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const itemsId = session.map((item) => {
-      return item.winIndex;
-    });
-    const itemData = await Items.find({
-      _id: { $in: itemsId },
-    });
-
-    ///fullSession
-
-    const itemsIdFull = fullSession.map((item) => {
-      return item.winIndex;
-    });
-    const itemDataFull = await Items.find({
-      _id: { $in: itemsIdFull },
-    });
-    ///
-    const maxPriceItem = itemDataFull.reduce((max, item) => {
-      if (item.price > max.price) {
-        return {
-          _id: item._id,
-          nameSkin: item.nameSkin,
-          nameWeapon: item.nameWeapon,
-          linkImg: item.linkImg,
-          price: item.price,
-        };
-      }
-      return max;
-    }, itemData[0]);
-    // Все предметы
-    const result = itemsId.map((id) =>
-      itemData.find((item) => item._id.toString() === id.toString())
-    );
-    if (itemData.length === 0) {
+    if (!session.length) {
       return res.json({
         maxPriceItem: null,
-        UserName: UserInfo.username,
-        inventory: null,
+        UserName: userInfo.username,
+        inventory: [],
+        hasMore: false,
       });
     }
-    const countItems = await RouletteSession.countDocuments({
-      userId: id,
-      isSpinned: true,
-    });
+
+    //поиск предметов
+    const currentPageItemId = session.map((item) => item.winIndex);
+    const [itemData, maxPriceItem] = await Promise.all([
+      Items.find({ _id: { $in: currentPageItemId } }).lean(),
+      Items.findOne({ _id: { $in: allUsserWinIds } })
+        .sort({ price: -1 })
+        .select('_id nameSkin nameWeapon linkImg price')
+        .lean(),
+    ]);
+    console.log(itemData);
+    const itemMap = new Map(
+      itemData.map((item) => [item._id.toString(), item])
+    );
+    const inventory = currentPageItemId
+      .map((itemId) => itemMap.get(itemId.toString()))
+      .filter(Boolean);
     const hasMore = page * limit < countItems;
 
-    if (req.query.page) {
-      return res.json({
-        hasMore,
-        inventory: result,
-      });
-    }
+    // 4. Возвращаем единую структуру ответа
     return res.json({
       maxPriceItem,
-      UserName: UserInfo.username,
-      inventory: result,
+      UserName: userInfo.username,
+      inventory,
       hasMore,
     });
   } catch (error) {
-    res.status(500).json({
-      message: 'Ошибка не удалось найти такого пользователя',
+    console.error('Ошибка в GetCaseUser:', error);
+    return res.status(500).json({
+      message: 'Ошибка при получении данных пользователя',
       error: error.message,
     });
   }
