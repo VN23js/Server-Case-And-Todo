@@ -311,7 +311,7 @@ export const GetCaseUser = async (req, res) => {
         .select('_id nameSkin nameWeapon linkImg price')
         .lean(),
     ]);
-    console.log(itemData);
+
     const itemMap = new Map(
       itemData.map((item) => [item._id.toString(), item])
     );
